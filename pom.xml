@@ -7,45 +7,42 @@
     <groupId>org.example</groupId>
     <artifactId>akleg-scraper</artifactId>
     <version>1.0.0</version>
-    <name>Alaska Legislature Scraper</name>
+    <name>Alaska Legislature Scraper (Selenium)</name>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <playwright.version>1.49.0</playwright.version>
+        <selenium.version>4.26.0</selenium.version>
         <jackson.version>2.20.0</jackson.version>
-        <slf4j.version>2.0.13</slf4j.version>
+        <webdrivermanager.version>5.9.2</webdrivermanager.version>
     </properties>
 
-
     <dependencies>
-        <!-- Playwright for Java -->
+        <!-- Selenium -->
         <dependency>
-            <groupId>com.microsoft.playwright</groupId>
-            <artifactId>playwright</artifactId>
-            <version>${playwright.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.jsoup</groupId>
-            <artifactId>jsoup</artifactId>
-            <version>1.21.1</version>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+            <version>${selenium.version}</version>
         </dependency>
 
+        <!-- WebDriverManager (auto-downloads chromedriver) -->
+        <dependency>
+            <groupId>io.github.bonigarcia</groupId>
+            <artifactId>webdrivermanager</artifactId>
+            <version>${webdrivermanager.version}</version>
+        </dependency>
 
-        <!-- JSON serialization -->
+        <!-- Jackson for JSON output -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>${jackson.version}</version>
         </dependency>
-
-        <!-- Simple logger to avoid SLF4J NOP warnings and give clean console logs -->
     </dependencies>
 
     <build>
         <plugins>
-            <!-- Ensure we compile against Java 21 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -55,7 +52,6 @@
                 </configuration>
             </plugin>
 
-            <!-- Run with: mvn -q exec:java -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
@@ -64,7 +60,6 @@
                     <mainClass>org.example.WebScrapper</mainClass>
                 </configuration>
             </plugin>
-
         </plugins>
     </build>
 </project>
