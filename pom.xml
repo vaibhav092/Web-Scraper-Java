@@ -18,6 +18,7 @@
         <slf4j.version>2.0.13</slf4j.version>
     </properties>
 
+
     <dependencies>
         <!-- Playwright for Java -->
         <dependency>
@@ -25,6 +26,12 @@
             <artifactId>playwright</artifactId>
             <version>${playwright.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.21.1</version>
+        </dependency>
+
 
         <!-- JSON serialization -->
         <dependency>

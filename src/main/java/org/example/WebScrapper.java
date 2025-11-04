@@ -2,130 +2,80 @@ package org.example;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
-import com.microsoft.playwright.*;
-import com.microsoft.playwright.options.WaitUntilState;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
 import java.io.File;
 import java.util.*;
 
 public class WebScrapper {
-
     public static void main(String[] args) {
-        String baseUrl = "https://akleg.gov/senate.php";
-        List<Map<String, String>> senators = new ArrayList<>();
+        String senateUrl = "https://senate.akleg.gov/";
+        List<Map<String, String>> allMembers = new ArrayList<>();
 
-        try (Playwright playwright = Playwright.create()) {
-            // ---- Launch Browser (non-headless for Cloudflare bypass) ----
-            Browser browser = playwright.chromium().launch(
-                    new BrowserType.LaunchOptions()
-                            .setHeadless(false)
-                            .setArgs(List.of(
-                                    "--no-sandbox",
-                                    "--disable-blink-features=AutomationControlled"
-                            ))
-            );
+        try {
+            System.out.println("🌐 Fetching Senate data...");
+            allMembers.addAll(fetchSenateMembers(senateUrl));
 
-            BrowserContext context = browser.newContext(
-                    new Browser.NewContextOptions()
-                            .setViewportSize(1920, 1080)
-                            .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-                                    "AppleWebKit/537.36 (KHTML, like Gecko) " +
-                                    "Chrome/131.0.0.0 Safari/537.36")
-            );
-
-            Page page = context.newPage();
-            System.out.println("🌐 Opening: " + baseUrl);
-            page.navigate(baseUrl, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
-
-            // ---- Wait for senator cards or Cloudflare ----
-            boolean loaded = waitForSenators(page);
-
-            if (!loaded) {
-                System.out.println("⚠️ Cloudflare challenge detected, waiting 10 seconds...");
-                page.waitForTimeout(10_000);
-                page.reload(new Page.ReloadOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
-                loaded = waitForSenators(page);
-            }
-
-            if (!loaded) {
-                System.err.println("🚨 Still no senators found (possible Cloudflare block). Exiting.");
-                browser.close();
-                return;
-            }
-
-            List<ElementHandle> members = page.querySelectorAll("div.member, div.col-md-3.member, div.member-card");
-            System.out.println("📊 Found " + members.size() + " senator entries");
-
-            for (ElementHandle member : members) {
-                Map<String, String> senator = new LinkedHashMap<>();
-
-                String name = textOrEmpty(member, ".member-name");
-                String party = textOrEmpty(member, ".member-party");
-                String profile = absolutize(attrOrEmpty(member, "img", "src"));
-                String href = absolutize(attrOrEmpty(member, "a", "href"));
-
-                senator.put("name", name);
-                senator.put("title", "Senator");
-                senator.put("party", party);
-                senator.put("profile", profile);
-                senator.put("dob", "");
-                senator.put("type", "Senator");
-                senator.put("country", "USA");
-                senator.put("url", href);
-                senator.put("otherinfo", "");
-
-                senators.add(senator);
-                System.out.println("✅ Added: " + name);
-            }
-
-            // ---- Write to data.json ----
             ObjectMapper mapper = new ObjectMapper();
             ObjectWriter writer = mapper.writerWithDefaultPrettyPrinter();
-            writer.writeValue(new File("data.json"), senators);
+            writer.writeValue(new File("data.json"), allMembers);
 
-            System.out.println("\n✅ Saved " + senators.size() + " senators to data.json");
-            browser.close();
+            System.out.println("✅ Saved " + allMembers.size() + " senators to data.json");
+
         } catch (Exception e) {
-            System.err.println("🚨 Fatal error: " + e.getMessage());
+            System.err.println("🚨 Error: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    // ---------------- Helper Methods ----------------
+    private static List<Map<String, String>> fetchSenateMembers(String url) throws Exception {
+        List<Map<String, String>> senators = new ArrayList<>();
 
-    private static boolean waitForSenators(Page page) {
-        try {
-            Locator locator = page.locator("div.member, div.col-md-3.member, div.member-card");
-            locator.first().waitFor(new Locator.WaitForOptions().setTimeout(45_000));
-            return locator.count() > 0;
-        } catch (Exception e) {
-            return false;
+        Document doc = Jsoup.connect(url)
+                .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+                .timeout(15000)
+                .get();
+
+        // The new site uses div.person under div.list
+        Elements members = doc.select("div.list div.person");
+
+        System.out.println("📊 Found " + members.size() + " senator entries");
+
+        for (Element member : members) {
+            Map<String, String> senator = new LinkedHashMap<>();
+
+            String name = member.select("h3").text();
+            String details = member.select("p").text();
+            String href = member.select("a").attr("href");
+            String img = member.select("img").attr("src");
+
+            if (!href.startsWith("http"))
+                href = "https://senate.akleg.gov" + href;
+            if (!img.startsWith("http"))
+                img = "https://senate.akleg.gov" + img;
+
+            // Split details to find party
+            String party = "";
+            if (details.toLowerCase().contains("republican")) party = "Republican";
+            else if (details.toLowerCase().contains("democrat")) party = "Democrat";
+
+            senator.put("name", name);
+            senator.put("title", "Senator");
+            senator.put("party", party);
+            senator.put("profile", img);
+            senator.put("dob", "");
+            senator.put("type", "Senator");
+            senator.put("country", "USA");
+            senator.put("url", href);
+            senator.put("otherinfo", details);
+
+            senators.add(senator);
+            System.out.println("✅ Added: " + name);
         }
-    }
 
-    private static String textOrEmpty(ElementHandle el, String selector) {
-        try {
-            ElementHandle sub = el.querySelector(selector);
-            return sub != null ? sub.innerText().trim() : "";
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
-    private static String attrOrEmpty(ElementHandle el, String selector, String attr) {
-        try {
-            ElementHandle sub = el.querySelector(selector);
-            return sub != null ? sub.getAttribute(attr) : "";
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
-    private static String absolutize(String href) {
-        if (href == null || href.isEmpty()) return "";
-        if (href.startsWith("http")) return href;
-        if (href.startsWith("//")) return "https:" + href;
-        if (!href.startsWith("/")) href = "/" + href;
-        return "https://akleg.gov" + href;
+        return senators;
     }
 }
